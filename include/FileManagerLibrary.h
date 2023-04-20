@@ -30,8 +30,7 @@ typedef struct _DIR_ENTRY{
     uint16_t last_access_date;
 };
 
-typedef struct _ROOT_DIR{
-    struct _DIR_ENTRY
-};
+
+int ReadMBR(const char* filename);
 
 #endif //FILESYSTEMMANAGER_FILEMANAGERLIBRARY_H

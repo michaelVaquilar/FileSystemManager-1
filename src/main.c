@@ -1,6 +1,7 @@
 #include <stdio.h>
+#include "../include/FileManagerLibrary.h"
 
 int main() {
-    printf("Hello, World!\n");
+    ReadMBR("../Test/usb.img");
     return 0;
 }

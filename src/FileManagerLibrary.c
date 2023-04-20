@@ -7,8 +7,8 @@
 
 static char g_working_directory[256] = {0};
 static FILE* g_file_pointer = NULL;
-static FAT* g_partition_list = NULL;
 static int g_partition_count = 0;
+MBR *mbr;
 
 const char* HumanNumberString(off_t size){
     const off_t GIGABYTE = 1073741824;
@@ -36,9 +36,11 @@ int ReadMBR(const char* filename) {
    memset(buffer,0,sizeof(MBR));
    int count = fread(buffer,sizeof(char), sizeof(MBR), fp);
 
-   MBR *mbr = (MBR*)buffer;
+   mbr = (MBR*)buffer;
+}
 
 
+void dumpMBR(){
     for (int i = 0; i < 446; i++) {
         printf("%02X ", mbr->bootcode[i]);
     }
