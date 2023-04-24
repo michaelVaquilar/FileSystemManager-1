@@ -33,4 +33,6 @@ typedef struct _DIR_ENTRY{
 
 int ReadMBR(const char* filename);
 
+void ListContents(const char* filename);
+
 #endif //FILESYSTEMMANAGER_FILEMANAGERLIBRARY_H
