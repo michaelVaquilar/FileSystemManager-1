@@ -3,5 +3,7 @@
 
 int main() {
     ReadMBR("../Test/usb.img");
+    
+    ListContents("../Test/usb.img");
     return 0;
 }
