@@ -9,10 +9,8 @@
 #define MAGICNUMBER 0x55AA
 
 
-static char g_working_directory[256] = {0};
-static FILE* g_file_pointer = NULL;
-static int g_partition_count = 0;
-MBR *mbr;
+static FILE *fp;
+static MBR *mbr;
 
 const char* HumanNumberString(off_t size){
     const off_t GIGABYTE = 1073741824;
@@ -27,7 +25,7 @@ int ReadMBR(const char* filename) {
     struct stat fs = {0};
     int rc = stat(filename, &fs);
 
-    FILE* fp = fopen(filename, "rb");
+    fp = fopen(filename, "rb");
     if (fp == NULL) {
         printf("Error opening disk image file.\n");
         return EXIT_FAILURE;
@@ -47,25 +45,36 @@ int ReadMBR(const char* filename) {
         return EXIT_FAILURE;
     }
 
-    fclose(fp);
     free(buffer);
 
     return EXIT_SUCCESS;
 }
 
+uint32_t reverse_uint32(uint32_t num) {
+    return ((num >> 24) & 0xff) | ((num << 8) & 0xff0000) | ((num >> 8) & 0xff00) | ((num << 24) & 0xff000000);
+}
 
-void readPartitions() {
+
+void readPartitions(const char *filename) {
     int i;
     for (i = 0; i < 4; i++) {
         partition p = mbr->part[i];
-        if (p.type == 0x0B || p.type == 0x0C) {
-            uint32_t lbaBegin = p.start_lba;
-            printf("\n FAT32 partition at LBA %u in partition %d\n", lbaBegin, i + 1);
-            uint32_t partitionSize = p.size;
+        const char *fs_type = NULL;
+        if (p.type == 0x01 || p.type == 0x04 || p.type == 0x06 || p.type == 0x0E) {
+            fs_type = "FAT12/FAT16";
+        } else if (p.type == 0x0B || p.type == 0x0C) {
+            fs_type = "FAT32";
+        }
+
+        if (fs_type) {
+            uint32_t lbaBegin = reverse_uint32(p.start_lba);
+            uint32_t fileOffset = lbaBegin * 512; // Calculate file offset
+            printf("\n %s partition at LBA 0x%08X (file offset: 0x%08X) in partition %d\n", fs_type, lbaBegin, fileOffset, i + 1);
+            uint32_t numSectors = reverse_uint32(p.size);
             uint32_t sectorSize = 512;
-            uint32_t filesystemSize = partitionSize * sectorSize;
-            printf("Partition size: %u bytes\n", partitionSize);
-            printf("Filesystem size: %u bytes\n", filesystemSize);
+            uint32_t filesystemSize = numSectors * sectorSize;
+            printf("Partition size: %u bytes (%u sectors)\n", filesystemSize, numSectors);
+
             readVolumeID(lbaBegin);
             // do something with lbaBegin and filesystemSize, e.g. read the filesystem data from the disk
         }
@@ -73,37 +82,66 @@ void readPartitions() {
 }
 
 
+
+
 void readVolumeID(uint32_t lbaBegin) {
-    // Read the first sector of the FAT32 filesystem (the Volume ID)
+    uint8_t sectorBuffer[512];
+    int result = readSector(lbaBegin, sectorBuffer);
+    if (result != EXIT_SUCCESS) {
+        printf("Error reading Volume ID sector.\n");
+        return;
+    }
+
+    printf("Sector contents:\n");
+    for (int i = 0; i < 512; i++) {
+        if (i % 16 == 0) {
+            printf("\n");
+        }
+        printf("%02X ", sectorBuffer[i]);
+    }
+    printf("\n");
+
+    // FAT32: Volume label is at offset 0x47 (71) in the boot sector
+    char volume_label[12];
+    memcpy(volume_label, &sectorBuffer[71], 11);
+    volume_label[11] = '\0';
+
+    volume_id *vID = (volume_id *)sectorBuffer;
+    printf("Volume ID: %08X\n", vID->volume_id);
+    printf("Volume Label: %s\n", volume_label);
+}
+
+
+int readSector( uint32_t lba, uint8_t *buffer) {
+    if (fp == NULL) {
+        printf("Error opening disk image file.\n");
+        return EXIT_FAILURE;
+    }
     uint32_t sectorSize = 512;
-    uint8_t* sectorBuffer = (uint8_t*)malloc(sectorSize);
-    readSector(lbaBegin, 1, sectorBuffer);
+    uint32_t offset = lba * sectorSize;
+    int rc = fseek(fp, offset, SEEK_SET);
+    if (rc != 0) {
+        printf("Error seeking to LBA %u.\n", lba);
+        fclose(fp);
+        return EXIT_FAILURE;
+    }
 
-    // Extract information from the Volume ID sector
-    uint8_t sectorsPerCluster = sectorBuffer[0x0D];
-    uint16_t reservedSectorCount = *((uint16_t*)&sectorBuffer[0x0E]);
-    uint8_t fatCount = sectorBuffer[0x10];
-    uint32_t sectorsPerFat = *((uint32_t*)&sectorBuffer[0x24]);
-    char volumeID[12];
-    memcpy(volumeID, &sectorBuffer[0x2B], 11);
-    volumeID[11] = '\0';
+    size_t count = fread(buffer, sizeof(uint8_t), sectorSize, fp);
+    if (count != sectorSize) {
+        printf("Error reading sector at LBA %u.\n", lba);
+        fclose(fp);
+        return EXIT_FAILURE;
+    }
 
-    // Print the extracted information to the console
-    printf("Volume ID: %s\n", volumeID);
-    printf("Sectors per cluster: %u\n", sectorsPerCluster);
-    printf("Reserved sector count: %u\n", reservedSectorCount);
-    printf("FAT count: %u\n", fatCount);
-    printf("Sectors per FAT: %u\n", sectorsPerFat);
-
-    // Free the sector buffer
-    free(sectorBuffer);
+    fclose(fp);
+    return EXIT_SUCCESS;
 }
 
 
 
 void dumpMBR(){
     printf("Boot code:\n");
-    for (int i = 0; i < 512; i++) {
+    for (int i = 0 + 16; i< 512; i++) {
         printf("%02X ", mbr->bootcode[i]);
     }
 }
