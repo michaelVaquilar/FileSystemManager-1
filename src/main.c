@@ -3,7 +3,8 @@
 
 int main() {
     ReadMBR("../Test/usb.img");
-   // dumpMBR();
+    //dumpMBR();
+    //printPartitions();
     readPartitions();
     return 0;
 }

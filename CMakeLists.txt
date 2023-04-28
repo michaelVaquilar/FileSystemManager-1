@@ -3,7 +3,7 @@ project(FileSystemManager C)
 
 set(CMAKE_C_STANDARD 11)
 
-set(SOURCE_FILES src/FileManagerLibrary.c include/FileManagerLibrary.h)
+set(SOURCE_FILES src/FileManagerLibrary.c include/FileManagerLibrary.h src/utility.c include/utility.h)
 
 add_library(FileManagerLib ${SOURCE_FILES})
 
