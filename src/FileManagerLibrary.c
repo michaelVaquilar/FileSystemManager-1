@@ -14,6 +14,7 @@
 
 
 static MBR *mbr;
+static BootSector bootSector;;
 static FILE *fp;
 
 const char* HumanNumberString(off_t size){
@@ -48,7 +49,6 @@ int ReadMBR(const char* filename) {
         return EXIT_FAILURE;
     }
 
-    fclose(fp);
 
     return EXIT_SUCCESS;
 }
@@ -66,17 +66,39 @@ void readPartitions() {
 
 
 
-void readLBA(uint32_t offset) {
-    BootSector bootSector;
+int readLBA(uint32_t offset) {
+
     fseek(fp, offset, SEEK_SET);
     fread(&bootSector, sizeof(BootSector), 1, fp);
 
-    // Print out the entire boot sector
-    printf("Boot sector:\n");
-    for (int i = 0; i < 512; i++) {
-        printf("%02x ", bootSector.executableMarker);
+    if(bootSector.executableMarker != 0xAA55){
+        printf("Boot Sector signature is not 0x55AA");
+        return EXIT_FAILURE;
     }
-    printf("\n");
+
+    printf("Boot sector:\n");
+    printf("Jump code + NOP: %02x %02x %02x\n", bootSector.jumpCode[0], bootSector.jumpCode[1], bootSector.jumpCode[2]);
+    printf("OEM name: %s\n", bootSector.oemName);
+    printf("Bytes per sector: %d\n", bootSector.bytesPerSector);
+    printf("Sectors per cluster: %d\n", bootSector.sectorsPerCluster);
+    printf("Reserved sectors: %d\n", bootSector.reservedSectors);
+    printf("Number of copies of FAT: %d\n", bootSector.numCopiesOfFAT);
+    printf("Maximum root directory entries: %d\n", bootSector.maxRootDirEntries);
+    printf("Number of sectors in partition smaller than 32MB: %d\n", bootSector.numSectorsSmall);
+    printf("Media descriptor: %02x\n", bootSector.mediaDescriptor);
+    printf("Sectors per FAT: %d\n", bootSector.sectorsPerFAT);
+    printf("Sectors per track: %d\n", bootSector.sectorsPerTrack);
+    printf("Number of heads: %d\n", bootSector.numHeads);
+    printf("Number of hidden sectors in partition: %u\n", bootSector.numHiddenSectors);
+    printf("Number of sectors in partition: %u\n", bootSector.numSectorsLarge);
+    printf("Logical drive number of partition: %d\n", bootSector.logicalDriveNumber);
+    printf("Extended signature: %02x\n", bootSector.extendedSignature);
+    printf("Serial number of partition: %u\n", bootSector.serialNumber);
+    printf("Volume name of partition: %s\n", bootSector.volumeName);
+    printf("FAT name: %s\n", bootSector.fatName);
+    printf("Executable marker: %02x %02x\n", *((uint8_t*)&bootSector + 510), *((uint8_t*)&bootSector + 511));
+
+    return EXIT_SUCCESS;
 }
 
 

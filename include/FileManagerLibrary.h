@@ -71,7 +71,7 @@ void ListContents(const char* filename);
 int GetNameFromEntry(DIR_ENTRY* entry, char* name);
 void readPartitions();
 uint32_t reverse_uint32(uint32_t num);
-void readLBA(uint32_t offset);
+int readLBA(uint32_t offset);
 void printPartitions();
 void dumpMBR();
 
