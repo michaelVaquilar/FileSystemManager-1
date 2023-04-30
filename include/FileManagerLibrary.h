@@ -46,29 +46,32 @@ typedef struct _MBR{
     uint16_t signature;} __attribute__((packed))MBR;
 
 
+typedef struct FAT16Table {
+    uint16_t entry[8192];   // each entry is 16 bits (2 bytes), and there are 8192 entries in a 16MB partition
+} __attribute__((packed)) FAT16Table;
 
-typedef struct _DIR_ENTRY {
-    uint8_t name8[8];
-    uint8_t ext3[3];
+
+
+typedef struct RootDirectoryEntry {
+    uint8_t filename[8];
+    uint8_t ext[3];
     uint8_t attributes;
-    uint16_t reserved;
-    uint16_t creation_time;
-    uint16_t creation_date;
-    uint16_t last_access_date;
-    uint16_t first_cluster_hi;
-    uint16_t last_mod_time;
-    uint16_t last_mod_date;
-    uint16_t first_cluster_lo;
-    uint32_t file_size;
-} __attribute__((packed)) DIR_ENTRY;
-
+    uint16_t reserved1;
+    uint16_t creationTime;
+    uint16_t creationDate;
+    uint16_t lastAccessDate;
+    uint16_t reserved2;
+    uint16_t modifiedTime;
+    uint16_t modifiedDate;
+    uint16_t startingCluster;
+    uint32_t fileSize;
+} __attribute__((packed)) RootDirectoryEntry;
 
 
 int ReadMBR(const char* filename);
 
 void ListContents(const char* filename);
 
-int GetNameFromEntry(DIR_ENTRY* entry, char* name);
 void readPartitions();
 uint32_t reverse_uint32(uint32_t num);
 int readLBA(uint32_t offset);

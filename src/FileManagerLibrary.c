@@ -65,9 +65,8 @@ void readPartitions() {
 }
 
 
-
 int readLBA(uint32_t offset) {
-
+    // Read the boot sector
     fseek(fp, offset, SEEK_SET);
     fread(&bootSector, sizeof(BootSector), 1, fp);
 
@@ -76,30 +75,33 @@ int readLBA(uint32_t offset) {
         return EXIT_FAILURE;
     }
 
-    printf("Boot sector:\n");
-    printf("Jump code + NOP: %02x %02x %02x\n", bootSector.jumpCode[0], bootSector.jumpCode[1], bootSector.jumpCode[2]);
-    printf("OEM name: %s\n", bootSector.oemName);
-    printf("Bytes per sector: %d\n", bootSector.bytesPerSector);
-    printf("Sectors per cluster: %d\n", bootSector.sectorsPerCluster);
-    printf("Reserved sectors: %d\n", bootSector.reservedSectors);
-    printf("Number of copies of FAT: %d\n", bootSector.numCopiesOfFAT);
-    printf("Maximum root directory entries: %d\n", bootSector.maxRootDirEntries);
-    printf("Number of sectors in partition smaller than 32MB: %d\n", bootSector.numSectorsSmall);
-    printf("Media descriptor: %02x\n", bootSector.mediaDescriptor);
-    printf("Sectors per FAT: %d\n", bootSector.sectorsPerFAT);
-    printf("Sectors per track: %d\n", bootSector.sectorsPerTrack);
-    printf("Number of heads: %d\n", bootSector.numHeads);
-    printf("Number of hidden sectors in partition: %u\n", bootSector.numHiddenSectors);
-    printf("Number of sectors in partition: %u\n", bootSector.numSectorsLarge);
-    printf("Logical drive number of partition: %d\n", bootSector.logicalDriveNumber);
-    printf("Extended signature: %02x\n", bootSector.extendedSignature);
-    printf("Serial number of partition: %u\n", bootSector.serialNumber);
-    printf("Volume name of partition: %s\n", bootSector.volumeName);
-    printf("FAT name: %s\n", bootSector.fatName);
-    printf("Executable marker: %02x %02x\n", *((uint8_t*)&bootSector + 510), *((uint8_t*)&bootSector + 511));
+    // Calculate the offset to the root directory
+    uint32_t rootDirOffset = offset + bootSector.reservedSectors * bootSector.bytesPerSector + bootSector.sectorsPerFAT * bootSector.numCopiesOfFAT * bootSector.bytesPerSector;
+
+    // Read the root directory entries
+    RootDirectoryEntry dirEntry;
+    int i;
+    for (i = 0; i < bootSector.maxRootDirEntries; i++) {
+        fseek(fp, rootDirOffset + i * sizeof(RootDirectoryEntry), SEEK_SET);
+        fread(&dirEntry, sizeof(RootDirectoryEntry), 1, fp);
+
+        // Check if the entry is empty
+        if (dirEntry.filename[0] == 0x00) {
+            break;
+        }
+
+        // Check if the entry is a long filename entry (not interested in these for now)
+        if ((dirEntry.attributes & 0x0F) == 0x0F) {
+            continue;
+        }
+
+        // Print the entry's filename
+        printf("%s.%s\n", dirEntry.filename, dirEntry.ext);
+    }
 
     return EXIT_SUCCESS;
 }
+
 
 
 
@@ -111,71 +113,4 @@ void dumpMBR(){
     }
 }
 
-
-//__________Directory Masaya____________
-
-int GetNameFromEntry(DIR_ENTRY* entry, char* name) {
-    int i;
-    for (i = 0; i < 8; i++) {
-        if (entry->name8[i] == ' ') {
-            break;
-        }
-        name[i] = entry->name8[i];
-    }
-    int hasExt = 0;
-    for (int j = 0; j < 3; j++) {
-        if (entry->ext3[j] == ' ') {
-            break;
-        }
-        if (!hasExt) {
-            name[i] = '.';
-            i++;
-            hasExt = 1;
-        }
-        name[i] = entry->ext3[j];
-        i++;
-    }
-    name[i] = '\0';
-    return i;
-}
-
-
-void ListContents(const char* filename) {
-    // Open the image disk file
-    FILE* fp = fopen(filename, "rb");
-    if (fp == NULL) {
-        printf("Error opening file\n");
-        return;
-    }
-
-    // Calculate the location of the root directory
-    int rootDirLocation = 512 + (1 + (2 * 32)) * 512; // FAT Beginning + reserved sector + #FATs * sectors/FAT * bytes/sector
-    // Just check the location
-    printf("Root directory location: %d\n", rootDirLocation);
-    //Skip the boot sector FAT sector
-    fseek(fp, rootDirLocation, SEEK_SET);
-
-    // Read the root directory entries
-    DIR_ENTRY entry;
-    for (int i = 0; i < 224; i++) {
-        fread(&entry, sizeof(DIR_ENTRY), 1, fp);
-        // Check if the directory entry represents a file or subdirectory
-        if (entry.name8[0] == 0x00) {
-            continue;  // Unused or deleted entry
-        }
-        if (entry.attributes & DIRECTORY_ATTRIBUTE_SUBDIRECTORY) {
-            printf("<DIR> ");
-        }
-        else {
-            printf("<FILE> ");
-        }
-
-        // Extract the file or directory name
-        char name[13];
-        int len = GetNameFromEntry(&entry, name);
-        printf("%s\n", name);
-    }
-    // Close the disk image file
-    fclose(fp);
-}
 
