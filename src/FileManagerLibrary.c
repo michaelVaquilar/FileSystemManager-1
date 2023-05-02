@@ -11,12 +11,16 @@
 
 #define DIRECTORY_ATTRIBUTE_SUBDIRECTORY 0x10
 #define MAGICNUMBER 0x55AA
+#define OPEN_SLOT 0xE5
 
 
 static MBR *mbr;
-static BootSector bootSector;;
+static BootSector bootSector;
 static ROOTDIRECTORY rootDir;
 static FILE *fp;
+static FAT16Table* fatTable;
+static FileSystem* fs;
+
 
 const char* HumanNumberString(off_t size) {
     const off_t GIGABYTE = 1073741824;
@@ -54,6 +58,28 @@ void printData(){
     printf("--------------------------------------------------\n");
 }
 
+void addChild(Directory* parent, RootDirectoryEntry entry) {
+    Directory* child = (Directory*)malloc(sizeof(Directory));
+    child->entry = entry;
+    child->parent = parent;
+    child->children = NULL;
+    child->childCount = 0;
+
+    if (parent->children == NULL) {
+        parent->children = (Directory*)malloc(sizeof(Directory) * 1);
+    } else {
+        Directory* temp = (Directory*)realloc(parent->children, sizeof(Directory) * (parent->childCount + 1)); //sigsegv happening here
+        if (temp == NULL) {
+            printf("Memory reallocation failed.\n");
+            free(child);
+            return;
+        }
+        parent->children = temp;
+    }
+    parent->children[parent->childCount] = *child;
+    parent->childCount++;
+    free(child);
+}
 
 
 
@@ -119,21 +145,64 @@ int readLBA(uint32_t offset) {
         printf("Boot Sector signature is not 0x55AA");
         return EXIT_FAILURE;
     }
-
-
-
-    readRootDir(offset);
-
+    readFatTables(offset);
     return EXIT_SUCCESS;
 }
 
+int readFatTables(uint32_t offset) {
+    // Determine the starting sector of the FAT table
+    uint32_t fatStartSector = bootSector.reservedSectors + (bootSector.numCopiesOfFAT * bootSector.sectorsPerFAT);
+
+    fatTable = malloc(sizeof(FAT16Table));
+    if (fatTable == NULL) {
+        perror("Error allocating memory for FAT table");
+        fclose(fp);
+        return -1;
+    }
+
+    // Seek to the starting sector of the FAT table
+    if (fseek(fp, fatStartSector * bootSector.bytesPerSector, SEEK_SET) != 0) {
+        perror("Error seeking to FAT table start sector");
+        fclose(fp);
+        return -1;
+    }
+
+    uint8_t fatTableData[bootSector.numCopiesOfFAT * bootSector.sectorsPerFAT * bootSector.bytesPerSector];
+    if (fread(fatTableData, sizeof(fatTableData), 1, fp) != 1) {
+        perror("Error reading FAT table data");
+        fclose(fp);
+        return -1;
+    }
+
+    memcpy(fatTable->entry, fatTableData, sizeof(fatTable->entry));
+    readRootDir(offset);
+
+    return 0;
+}
+
+
 
 int readRootDir(uint32_t offset) {
+    fs = malloc(sizeof(FileSystem));
+
+    if (!fs) {
+        perror("Error allocating memory for FileSystem");
+        fclose(fp);
+        return -1;
+    }
+    fs->root = NULL;
+
+
     memset(&rootDir, 0, sizeof(ROOTDIRECTORY));
     printf("Now reading root directory...\n");
 
     // Calculate the offset to the root directory
     uint32_t rootDirOffset = offset + bootSector.reservedSectors * bootSector.bytesPerSector + bootSector.sectorsPerFAT * bootSector.numCopiesOfFAT * bootSector.bytesPerSector;
+
+    fs->root = (Directory*)malloc(sizeof(Directory));
+    fs->root->parent = NULL;
+    fs->root->children = NULL;
+    fs->root->childCount = 0;
 
     // Read the root directory entries
     int i;
@@ -151,7 +220,48 @@ int readRootDir(uint32_t offset) {
             continue;
         }
 
-        rootDir.count++;
+        addChild(fs->root, rootDir.entries[i]);
+
+        // Check if the entry is a subdirectory
+        if (rootDir.entries[i].attributes & 0x10) {
+            uint16_t startingCluster = rootDir.entries[i].startingCluster;
+            readSubDir(offset, startingCluster, &fs->root->children[fs->root->childCount - 1]);
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int readSubDir(uint32_t offset, uint16_t startingCluster, Directory* currentDir) {
+    uint32_t clusterOffset = (bootSector.reservedSectors + bootSector.numCopiesOfFAT * bootSector.sectorsPerFAT) * bootSector.bytesPerSector;
+    uint32_t clusterSize = bootSector.sectorsPerCluster * bootSector.bytesPerSector;
+    uint32_t subDirOffset = offset + clusterOffset + (startingCluster - 2) * clusterSize;
+
+    int i = 0;
+    while (1) {
+        fseek(fp, subDirOffset + i * sizeof(RootDirectoryEntry), SEEK_SET);
+        RootDirectoryEntry subDirEntry;
+        fread(&subDirEntry, sizeof(RootDirectoryEntry), 1, fp);
+
+        // Check if the entry is empty
+        if (subDirEntry.filename[0] == 0x00) {
+            break;
+        }
+
+        // Check if the entry is a long filename entry (not interested in these for now)
+        if ((subDirEntry.attributes & 0x0F) == 0x0F) {
+            i++;
+            continue;
+        }
+
+        addChild(currentDir, subDirEntry);
+
+        // Check if the entry is a subdirectory
+        if (subDirEntry.attributes & 0x10) {
+            readSubDir(offset, subDirEntry.startingCluster, &currentDir->children[currentDir->childCount - 1]);
+        }
+
+        i++;
     }
 
     return EXIT_SUCCESS;

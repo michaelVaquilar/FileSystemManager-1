@@ -47,7 +47,7 @@ typedef struct _MBR{
 
 
 typedef struct FAT16Table {
-    uint16_t entry[8192];   // each entry is 16 bits (2 bytes), and there are 8192 entries in a 16MB partition
+    uint16_t entry[32768];   // each entry is 16 bits (2 bytes), and there are 16384 entries in a 32MB partition
 } __attribute__((packed)) FAT16Table;
 
 
@@ -73,6 +73,19 @@ typedef struct RootDirectory{
     int count;
 } ROOTDIRECTORY;
 
+typedef struct Directory {
+    RootDirectoryEntry entry;
+    struct Directory* parent;
+    struct Directory* children;
+    int childCount;
+} Directory;
+
+typedef struct FileSystem {
+    Directory* root;
+} FileSystem;
+
+
+void addChild(Directory* parent, RootDirectoryEntry entry);
 
 int ReadMBR(const char* filename);
 
@@ -82,10 +95,13 @@ void readPartitions();
 uint32_t reverse_uint32(uint32_t num);
 int readLBA(uint32_t offset);
 void printPartitions();
+int readFatTables(uint32_t offset);
 int readRootDir(uint32_t offset);
-void dumpRootDir();
+int readSubDir(uint32_t offset, uint16_t startingCluster, Directory* currentDir);
+        void dumpRootDir();
 int ParseUSB(const char* filename);
 void dumpMBR();
+void printRootDirCluster();
 void printData();
 
 #endif
