@@ -68,6 +68,12 @@ typedef struct RootDirectoryEntry {
 } __attribute__((packed)) RootDirectoryEntry;
 
 
+typedef struct RootDirectory{
+    RootDirectoryEntry entries[512];
+    int count;
+} ROOTDIRECTORY;
+
+
 int ReadMBR(const char* filename);
 
 void ListContents(const char* filename);
@@ -76,6 +82,10 @@ void readPartitions();
 uint32_t reverse_uint32(uint32_t num);
 int readLBA(uint32_t offset);
 void printPartitions();
+int readRootDir(uint32_t offset);
+void dumpRootDir();
+int ParseUSB(const char* filename);
 void dumpMBR();
+void printData();
 
 #endif

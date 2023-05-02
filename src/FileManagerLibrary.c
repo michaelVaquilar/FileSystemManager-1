@@ -15,17 +15,62 @@
 
 static MBR *mbr;
 static BootSector bootSector;;
+static ROOTDIRECTORY rootDir;
 static FILE *fp;
 
-const char* HumanNumberString(off_t size){
+const char* HumanNumberString(off_t size) {
     const off_t GIGABYTE = 1073741824;
     const off_t MEGABYTE = 1048576;
     const off_t KILOBYTE = 1024;
 
     static char hsize[32] = {0};
-    memset(hsize,0,sizeof(hsize));
+    memset(hsize, 0, sizeof(hsize));
+
+    if (size >= GIGABYTE) {
+        snprintf(hsize, sizeof(hsize), "%.2f GB", (double)size / GIGABYTE);
+    } else if (size >= MEGABYTE) {
+        snprintf(hsize, sizeof(hsize), "%.2f MB", (double)size / MEGABYTE);
+    } else if (size >= KILOBYTE) {
+        snprintf(hsize, sizeof(hsize), "%.2f KB", (double)size / KILOBYTE);
+    } else {
+        snprintf(hsize, sizeof(hsize), "%ld bytes", size);
+    }
+
+    return hsize;
 }
 
+
+
+void printData(){
+    char label[12];
+    memset(label, 0, sizeof(label));
+    memcpy(label, bootSector.volumeName, sizeof(bootSector.volumeName));
+
+    off_t size = (off_t)bootSector.numSectorsLarge * (off_t)bootSector.bytesPerSector;
+    printf("-=| File System Information |=-\n");
+    printf("--------------------------------------------------\n");
+    printf("| # Label          Serial         Size     Type  |\n");
+    printf("| 1  %s   %08X   %s    FAT16 |\n",label, bootSector.serialNumber, HumanNumberString(size));
+    printf("--------------------------------------------------\n");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int ParseUSB(const char* filename){
+    ReadMBR(filename);
+    readPartitions();
+}
 int ReadMBR(const char* filename) {
     struct stat fs = {0};
     int rc = stat(filename, &fs);
@@ -75,35 +120,54 @@ int readLBA(uint32_t offset) {
         return EXIT_FAILURE;
     }
 
-    // Calculate the offset to the root directory
-    uint32_t rootDirOffset = offset + bootSector.reservedSectors * bootSector.bytesPerSector + bootSector.sectorsPerFAT * bootSector.numCopiesOfFAT * bootSector.bytesPerSector;
 
-    // Read the root directory entries
-    RootDirectoryEntry dirEntry;
-    int i;
-    for (i = 0; i < bootSector.maxRootDirEntries; i++) {
-        fseek(fp, rootDirOffset + i * sizeof(RootDirectoryEntry), SEEK_SET);
-        fread(&dirEntry, sizeof(RootDirectoryEntry), 1, fp);
 
-        // Check if the entry is empty
-        if (dirEntry.filename[0] == 0x00) {
-            break;
-        }
-
-        // Check if the entry is a long filename entry (not interested in these for now)
-        if ((dirEntry.attributes & 0x0F) == 0x0F) {
-            continue;
-        }
-
-        // Print the entry's filename
-        printf("%s.%s\n", dirEntry.filename, dirEntry.ext);
-    }
+    readRootDir(offset);
 
     return EXIT_SUCCESS;
 }
 
 
+int readRootDir(uint32_t offset) {
+    memset(&rootDir, 0, sizeof(ROOTDIRECTORY));
+    printf("Now reading root directory...\n");
 
+    // Calculate the offset to the root directory
+    uint32_t rootDirOffset = offset + bootSector.reservedSectors * bootSector.bytesPerSector + bootSector.sectorsPerFAT * bootSector.numCopiesOfFAT * bootSector.bytesPerSector;
+
+    // Read the root directory entries
+    int i;
+    for (i = 0; i < bootSector.maxRootDirEntries; i++) {
+        fseek(fp, rootDirOffset + i * sizeof(RootDirectoryEntry), SEEK_SET);
+        fread(&rootDir.entries[i], sizeof(RootDirectoryEntry), 1, fp);
+
+        // Check if the entry is empty
+        if (rootDir.entries[i].filename[0] == 0x00) {
+            break;
+        }
+
+        // Check if the entry is a long filename entry (not interested in these for now)
+        if ((rootDir.entries[i].attributes & 0x0F) == 0x0F) {
+            continue;
+        }
+
+        rootDir.count++;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+void dumpRootDir() {
+    printf("Dumping root directory:\n");
+    int i;
+    for (i = 0; i < rootDir.count; i++) {
+        printf("Entry %d:\n", i);
+        printf("  Filename: %s.%s\n", rootDir.entries[i].filename, rootDir.entries[i].ext);
+        printf("  Attributes: 0x%02X\n", rootDir.entries[i].attributes);
+        printf("  Starting cluster: %d\n", rootDir.entries[i].startingCluster);
+        printf("  File size: %d bytes\n", rootDir.entries[i].fileSize);
+    }
+}
 
 
 void dumpMBR(){
