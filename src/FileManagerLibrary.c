@@ -287,4 +287,77 @@ void dumpMBR(){
     }
 }
 
+void ListContents(const char* filename) {
+    // Open the image disk file
+    FILE* fp = fopen(filename, "rb");
+    if (fp == NULL) {
+        printf("Error opening file\n");
+        return;
+    }
+
+    // Calculate the location of the root directory
+    int rootDirLocation = 0x141000;
+    //Skip the boot sector and FAT sector
+    fseek(fp, rootDirLocation, SEEK_SET);
+
+    int entryFound = 0;
+    // Read the root directory entries
+    DIR_ENTRY entry;
+    for (int i = 0; i < 224; i++) {
+        fread(&entry, sizeof(DIR_ENTRY), 1, fp);
+        // Check if the directory entry represents a file or subdirectory
+        if (entry.name8[0] == 0x00 || entry.name8[0] == 0xE5) {
+            continue;
+        }
+        else if (entry.attributes & DIRECTORY_ATTRIBUTE_SUBDIRECTORY) {
+            printf("<DIR> ");
+        }
+        else if (entry.attributes & DIRECTORY_ATTRIBUTE_ARCHIVE) {
+            printf("<FILE> ");
+        }
+        else {
+            // Skip other entries
+            continue;
+        }
+
+        // Extract the file or directory name
+        char name[13];
+        int len = GetNameFromEntry(&entry, name);
+        uint32_t cluster = entry.first_cluster_hi << 16 | entry.first_cluster_lo;
+        printf("%s %d\n", name, cluster);
+
+    }
+
+    // Close the disk image file
+    fclose(fp);
+}
+
+void ReadFileFromCluster(const char* filename, int cluster) {
+    // Open the image disk file
+    FILE* fp = fopen(filename, "rb");
+    if (fp == NULL) {
+        printf("Error opening file\n");
+        return;
+    }
+
+    BPB bpb;
+    // Calculate the location of the First Data Sector
+    int FirstDataSector = bpb.BPB_RsvdSecCnt + bpb.BPB_NumFATs * bpb.BPB_FATSz32;
+    int FirstSectorofCluster = ((cluster - 2) * bpb.BPB_SecPerClus) + FirstDataSector;
+
+    // Seek to the first sector of the cluster
+    fseek(fp, FirstSectorofCluster * bpb.BPB_BytePerSec, SEEK_SET);
+
+    // Read the contents of the file
+    char buffer[bpb.BPB_SecPerClus * bpb.BPB_BytePerSec];
+    fread(buffer, 1, bpb.BPB_SecPerClus * bpb.BPB_BytePerSec, fp);
+
+    // Print the contents of the file
+    printf("%s", buffer);
+
+    // Close the disk image file
+    fclose(fp);
+}
+
+
 
