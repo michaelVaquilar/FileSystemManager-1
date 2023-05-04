@@ -67,6 +67,26 @@ typedef struct RootDirectoryEntry {
     uint32_t fileSize;
 } __attribute__((packed)) RootDirectoryEntry;
 
+typedef struct _BPB {
+    uint16_t BPB_BytePerSec;
+    uint8_t  BPB_SecPerClus;
+    uint16_t BPB_RsvdSecCnt;
+    uint8_t  BPB_NumFATs;
+    uint16_t BPB_RootEntCnt;
+    uint16_t BPB_TotSec16;
+    uint8_t  BPB_Media;
+    uint16_t BPB_FATSz16;
+    uint16_t BPB_FATSz32;
+    uint16_t BPB_SecPerTrk;
+    uint16_t BPB_NumHeads;
+    uint32_t BPB_HiddSec;
+    uint32_t BPB_TotSec32;
+} __attribute__((packed)) BPB;
+
+void ListContents(const char* filename);
+
+void ReadFileFromCluster(const char* filename, int cluster);
+
 
 typedef struct RootDirectory{
     RootDirectoryEntry entries[512];
