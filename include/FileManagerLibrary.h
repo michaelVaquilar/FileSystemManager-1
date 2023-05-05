@@ -1,18 +1,23 @@
-
 #ifndef FILESYSTEMMANAGER_FILEMANAGERLIBRARY_H
 #define FILESYSTEMMANAGER_FILEMANAGERLIBRARY_H
 
 #include <stdint.h>
 
-typedef struct _partition{
+/**
+ * Defines the structure of a partition in the MBR.
+ */
+typedef struct _partition {
     uint8_t bootable;
     uint8_t first_chs[3];
     uint8_t type;
     uint8_t last_chs[3];
     uint32_t lba_offset;
-    uint32_t sector_count;} __attribute__((packed)) partition;
+    uint32_t sector_count;
+} __attribute__((packed)) partition;
 
-
+/**
+ * Defines the structure of a boot sector.
+ */
 typedef struct BootSector {
     uint8_t jumpCode[3];
     uint8_t oemName[8];
@@ -37,21 +42,25 @@ typedef struct BootSector {
     uint16_t executableMarker;
 } __attribute__((packed)) BootSector;
 
-
-
-
-typedef struct _MBR{
+/**
+ * Defines the structure of the MBR.
+ */
+typedef struct _MBR {
     uint8_t bootcode[446];
     partition part[4];
-    uint16_t signature;} __attribute__((packed))MBR;
+    uint16_t signature;
+} __attribute__((packed)) MBR;
 
-
+/**
+ * Defines the structure of a FAT16 table.
+ */
 typedef struct FAT16Table {
-    uint16_t entry[32768];   // each entry is 16 bits (2 bytes), and there are 16384 entries in a 32MB partition
+    uint16_t entry[32768];
 } __attribute__((packed)) FAT16Table;
 
-
-
+/**
+ * Defines the structure of a root directory entry.
+ */
 typedef struct RootDirectoryEntry {
     uint8_t filename[8];
     uint8_t ext[3];
@@ -67,61 +76,97 @@ typedef struct RootDirectoryEntry {
     uint32_t fileSize;
 } __attribute__((packed)) RootDirectoryEntry;
 
-typedef struct _BPB {
-    uint16_t BPB_BytePerSec;
-    uint8_t  BPB_SecPerClus;
-    uint16_t BPB_RsvdSecCnt;
-    uint8_t  BPB_NumFATs;
-    uint16_t BPB_RootEntCnt;
-    uint16_t BPB_TotSec16;
-    uint8_t  BPB_Media;
-    uint16_t BPB_FATSz16;
-    uint16_t BPB_FATSz32;
-    uint16_t BPB_SecPerTrk;
-    uint16_t BPB_NumHeads;
-    uint32_t BPB_HiddSec;
-    uint32_t BPB_TotSec32;
-} __attribute__((packed)) BPB;
-
-void ListContents(const char* filename);
-
-void ReadFileFromCluster(const char* filename, int cluster);
-
-
-typedef struct RootDirectory{
+typedef struct RootDirectory {
     RootDirectoryEntry entries[512];
     int count;
 } ROOTDIRECTORY;
 
-typedef struct Directory {
-    RootDirectoryEntry entry;
-    struct Directory* parent;
-    struct Directory* children;
-    int childCount;
-} Directory;
-
-typedef struct FileSystem {
-    Directory* root;
-} FileSystem;
-
-
-void addChild(Directory* parent, RootDirectoryEntry entry);
-
+/**
+ * Reads the Master Boot Record (MBR) from the specified file.
+ *
+ * @param filename the name of the file to read the MBR from.
+ * @return 0 if the MBR was successfully read, otherwise returns a negative integer.
+ */
 int ReadMBR(const char* filename);
 
-void ListContents(const char* filename);
-
-void readPartitions();
-uint32_t reverse_uint32(uint32_t num);
-int readLBA(uint32_t offset);
-void printPartitions();
-int readFatTables(uint32_t offset);
-int readRootDir(uint32_t offset);
-int readSubDir(uint32_t offset, uint16_t startingCluster, Directory* currentDir);
-        void dumpRootDir();
+/**
+ * Parses the USB device specified by the filename and populates the necessary data structures.
+ *
+ * @param filename the name of the USB device to parse.
+ * @return 0 if the USB device was successfully parsed, otherwise returns a negative integer.
+ */
 int ParseUSB(const char* filename);
+
+/**
+ * Prints the contents of the MBR to the console.
+ */
 void dumpMBR();
-void printRootDirCluster();
+
+/**
+ * Prints the contents of the boot sector to the console.
+ */
+void dumpBootSector();
+
+/**
+ * Prints the parsed data from the USB device to the console.
+ */
 void printData();
 
+/**
+ * Reads the partitions in the MBR
+ */
+void readPartitions();
+
+/**
+ * Reads the LBA recieved from the Partitions.
+ * @param offset location of the LBA
+ * @return EXIT_SUCCESS OR EXIT_FAILURE
+ */
+int readLBA(uint32_t offset);
+
+/**
+ * Parses the fat tables via offset recieved from the LBA
+ * @param offset location of the Fat Tables
+ * @return EXIT_SUCCESS OR EXIT_FAILURE
+ */
+int readFatTables(uint32_t offset);
+
+/**
+ * Parses a directory given the offset of the directory
+ * @param offset location of the Directory
+ * @return EXIT_SUCCESS OR EXIT_FAILURE
+ */
+int ReadDir(uint32_t offset);
+
+/**
+ * Changes the current working directory to the specified directory.
+ *
+ * @param dirName the name of the directory to change to.
+ * @return 0 if the directory was successfully changed, otherwise returns a negative integer.
+ */
+int ChangeDirectory(const char* dirName);
+
+/**
+ * Changes the current working directory back to the root directory.
+ */
+void backToRootDir();
+
+/**
+ * Prints the contents of the current working directory to the console.
+ */
+void dumpDir();
+
+/**
+ * Reads and prints the contents of the specified file to the console.
+ *
+ * @param filename the name of the file to read and print.
+ */
+void readFile(char *filename);
+
+/**
+ * Prints the contents of the File Allocation Table (FAT) to the console.
+ */
+void dumpFAT16Table();
+
 #endif
+
