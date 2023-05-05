@@ -4,6 +4,10 @@ The file system is an important and highly visible part of the operating system.
 
 This project parses an img file and reads the partitions within to find the Root Directory and navigate to other directories.
 
+## Goals
+
+Our team accomplished many of our goals for this project, although we faced significant challenges in understanding the layout of FAT12, FAT16, and FAT32. Despite our best efforts, we were unable to implement one idea we had; this was to use our [data structures library stack](https://github.com/tensign1444/CDataStructures) to track the user's last directory visited. Instead, we could only send the user back to the root directory. While this was a disappointment, we are proud of the progress we made and the valuable experience we gained from working on such a difficult project.
+
 ## Usage
 To use the FileSystemManager library, simply clone this repository into your project directory and include the filemanagerlibrary.h header file in your code. You can then call the library functions to read and manipulate FAT16 file systems.
 
